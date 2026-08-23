@@ -10,7 +10,7 @@
 
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
 
-<div class="grid h-dvh grid-rows-[1fr_auto]">
+<div class="grid h-svh grid-rows-[1fr_auto]">
 	<main class="overflow-y-auto px-5 pt-5">
 		{@render children()}
 	</main>

@@ -15,6 +15,8 @@
 	import { slide } from 'svelte/transition';
 	import { authClient } from '$lib/client/auth-client';
 	import { goto } from '$app/navigation';
+	import { differenceInDays } from 'date-fns';
+
 	import { resolve } from '$app/paths';
 	import Barcode from './Barcode.svelte';
 
@@ -34,6 +36,7 @@
 			splitPercentage: parseInt((100 / group.members.length).toFixed(0))
 		})) || []
 	);
+	let boughtById = $derived('');
 
 	const setReceipt = async (id: string) => {
 		const receipt = await getReceipt({ receiptId: id });
@@ -50,6 +53,7 @@
 			}));
 			storeName = receipt.storeName;
 			boughtAt = receipt.boughtAt;
+			boughtById = receipt.boughtById;
 		}
 	};
 
@@ -179,8 +183,12 @@
 			}));
 
 			storeName = parseReceiptImage.result.receipt.storeName;
-			boughtAt = new Date(parseReceiptImage.result.receipt.boughtAt);
-			console.log(parseReceiptImage.result?.receipt);
+			const parsedDate = new Date(parseReceiptImage.result.receipt.boughtAt);
+			if (Math.abs(differenceInDays(parsedDate, new Date())) <= 30) {
+				boughtAt = parsedDate;
+			} else {
+				boughtAt = new Date();
+			}
 			imageLoading = false;
 		}
 	});
@@ -190,13 +198,13 @@
 		if (!user) return;
 		if (!group) return;
 
-		if (receiptId) {
+		if (receiptId && boughtById) {
 			await patchReceipt({
 				id: receiptId,
 				storeName,
 				boughtAt: boughtAt.toISOString(),
 				groupId: group.id,
-				boughtById: user.id,
+				boughtById: boughtById,
 				items: items.map((item) => ({
 					name: item.name,
 					price: item.price,
@@ -310,7 +318,7 @@
 		class="date"
 		value={boughtAtInput}
 		onchange={(e) => {
-			boughtAt = new Date(`${e.currentTarget.value}T00:00:00`);
+			boughtAt = new Date(`${e.currentTarget.value}`);
 		}}
 	/>
 	<div class="overflow-x-auto">

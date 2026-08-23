@@ -29,7 +29,10 @@
 		<input {...createPayment.fields.groupId.as('text')} value={group.id} hidden />
 		<fieldset class="fieldset">
 			<label class="label" for="name">From:</label>
-			<select class="select w-full" {...createPayment.fields.fromUserId.as('select')}>
+			<select
+				class="select w-full border border-black"
+				{...createPayment.fields.fromUserId.as('select')}
+			>
 				{#each group.members as member (member.id)}
 					<option
 						value={member.userId}
@@ -41,7 +44,10 @@
 		</fieldset>
 		<fieldset class="fieldset">
 			<label class="label" for="name">To:</label>
-			<select class="select w-full" {...createPayment.fields.toUserId.as('select')}>
+			<select
+				class="select-outline select w-full border border-black"
+				{...createPayment.fields.toUserId.as('select')}
+			>
 				{#each group.members.filter((m) => m.userId !== createPayment.fields.fromUserId.value()) as member (member.id)}
 					<option
 						value={member.userId}
@@ -56,15 +62,14 @@
 			<label class="label" for="amount">Amount:</label>
 			<div class="join grid w-full grid-cols-[1fr_auto]">
 				<input
-					class="input join-item w-full"
+					class="input join-item w-full border border-black"
 					placeholder="Amount"
-					type="number"
 					step="0.01"
 					{...createPayment.fields.amount.as('number')}
 					value={payment?.current?.amount ? payment.current.amount / 100 : undefined}
 				/>
 				<select
-					class="select join-item w-full"
+					class="select join-item w-full border border-black"
 					{...createPayment.fields.currency.as('text')}
 					value={payment?.current?.currency || 'CHF'}
 				>
@@ -75,7 +80,7 @@
 		<fieldset class="fieldset w-full">
 			<label class="label w-full" for="description">Description:</label>
 			<textarea
-				class="textarea w-full"
+				class="textarea w-full border border-black"
 				{...createPayment.fields.description.as('text')}
 				placeholder="Description"
 				value={payment?.current?.description}></textarea>

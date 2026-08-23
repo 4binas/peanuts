@@ -2,9 +2,10 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import { MoveRight, Plus } from '@lucide/svelte';
+	import { Download, MoveRight, Plus } from '@lucide/svelte';
 	import { listPayments } from './add/payment.remote';
 	import { getGroup } from '../groupContext';
+	import { exportJSON } from '$lib/client/util';
 
 	let groupFn = getGroup();
 	let group = $derived(groupFn());
@@ -21,7 +22,16 @@
 		Add Payment
 	</button>
 
-	<h1 class="text-2xl">Payments</h1>
+	<div class="flex items-center justify-between">
+		<h1 class="text-2xl">Payments</h1>
+		<button
+			class="btn btn-outline"
+			onclick={() =>
+				payments && exportJSON(payments, `payments_${new Date().toLocaleDateString()}`)}
+		>
+			<Download size={16} />
+		</button>
+	</div>
 	{#if payments && group}
 		<ul class="grid gap-4">
 			{#each payments as payment (payment.id)}
