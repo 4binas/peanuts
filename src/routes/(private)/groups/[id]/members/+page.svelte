@@ -24,7 +24,7 @@
 
 			<fieldset class="fieldset">
 				<legend class="fieldset-legend">Select a member</legend>
-				<select class="select w-full" {...addMember.fields.userId.as('text')}>
+				<select class="select w-full border border-black" {...addMember.fields.userId.as('text')}>
 					{#each users.filter((u) => !group.members
 								.map((m) => m.userId)
 								.includes(u.id)) as user (user.id)}
