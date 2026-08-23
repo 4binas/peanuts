@@ -39,9 +39,9 @@ export default defineConfig({
 		SvelteKitPWA({
 			registerType: 'autoUpdate',
 			manifest: {
-				name: 'My App',
-				short_name: 'My App',
-				description: 'My SvelteKit application',
+				name: 'Peanuts',
+				short_name: 'Peanuts',
+				description: 'Peanuts: expenses tracking',
 				theme_color: '#ffffff',
 				background_color: '#ffffff',
 				display: 'standalone',
