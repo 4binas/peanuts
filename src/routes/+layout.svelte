@@ -1,6 +1,6 @@
 <script>
 	import './layout.css';
-	import favicon from '$lib/assets/favicon.svg';
+	import favicon from '$lib/assets/favicon.png';
 	// @ts-expect-error -- virtual module provided by vite-plugin-pwa
 	import { pwaInfo } from 'virtual:pwa-info';
 

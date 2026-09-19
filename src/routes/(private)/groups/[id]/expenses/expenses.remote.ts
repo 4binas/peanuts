@@ -124,9 +124,11 @@ async function getGroupBalances(groupId: string): Promise<Balance[]> {
 		add(p.toUserId, -p.amount); // received -> reduces what's owed to them
 	}
 
-	return [...map.entries()]
+	const balance = [...map.entries()]
 		.map(([userId, balanceCents]) => ({ userId, balanceCents }))
 		.filter((b) => b.balanceCents !== 0);
+
+	return balance;
 }
 
 export const getBalaceSheet = query(
