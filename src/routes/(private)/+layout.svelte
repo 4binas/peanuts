@@ -1,5 +1,5 @@
 <script lang="ts">
-	import favicon from '$lib/assets/favicon.svg';
+	import favicon from '$lib/assets/favicon.png';
 	import { resolve } from '$app/paths';
 	import { Birdhouse, Settings } from '@lucide/svelte';
 	import { page } from '$app/state';

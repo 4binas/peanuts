@@ -2,7 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import { ArrowDown10, ArrowUp01, Download, Funnel, Plus } from '@lucide/svelte';
+	import { ArrowDown10, ArrowDownUp, ArrowUp01, Download, Plus } from '@lucide/svelte';
 	import { getGroup } from '../groupContext';
 	import { getExpenses } from './expenses.remote';
 	import { flip } from 'svelte/animate';
@@ -82,7 +82,7 @@
 
 			<div class="dropdown dropdown-end">
 				<div tabindex="0" role="button" class="btn btn-outline">
-					<Funnel size={16} />
+					<ArrowDownUp size={16} />
 				</div>
 				<ul
 					tabindex="-1"

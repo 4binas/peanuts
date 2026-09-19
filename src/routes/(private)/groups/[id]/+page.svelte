@@ -10,6 +10,10 @@
 	const group = $derived(getGroupFn());
 
 	const balanceSheet = $derived(await (group?.id ? getBalaceSheet({ groupId: group.id }) : null));
+
+	$effect(() => {
+		console.log(balanceSheet);
+	});
 </script>
 
 <!-- name of each tab group should be unique -->
@@ -29,17 +33,19 @@
 			{/each}
 		</ul>
 	{/if}
-	{#if balanceSheet && group}
+	{#if group}
 		<h1 class="text-2xl">Balance Sheet</h1>
 		<ul>
-			{#each balanceSheet as sheet (sheet.userId)}
+			{#each group.members as member (member.id)}
 				<li>
 					<div class="flex justify-between">
 						<div>
-							{group.members.find((m) => m.userId === sheet.userId)?.user.name}
+							{member.user.name}
 						</div>
 						<div>
-							{sheet.balanceCents / 100}
+							{(
+								(balanceSheet?.find((s) => s.userId === member.userId)?.balanceCents ?? 0) / 100
+							).toFixed(2)}
 							{group.currency}
 						</div>
 					</div>
