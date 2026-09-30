@@ -1,6 +1,6 @@
 import { db } from '../db';
 import { receipt, receipt_item, receipt_split } from '../db/schema';
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 export const ReceiptItemSplitSchema = z.object({
@@ -60,21 +60,20 @@ class ReceiptRepository {
 			.then(([r]) => r);
 	}
 
-	/** Amount each debtor owes the buyer, per receipt, in cents. */
-	async getAmountsOwed(groupId: string) {
+	/** One row per item split in the group, with the item's price in cents. */
+	async getSplits(groupId: string) {
 		return await db
 			.select({
+				itemId: receipt_item.id,
 				buyerId: receipt.boughtById,
-				debtorId: receipt_split.userId,
-				amountOwed: sql<number>`
-        sum(${receipt_item.price} * ${receipt_split.splitPercentage} / 100.0)
-      `
+				price: receipt_item.price,
+				userId: receipt_split.userId,
+				splitPercentage: receipt_split.splitPercentage
 			})
 			.from(receipt)
 			.innerJoin(receipt_item, eq(receipt_item.receiptId, receipt.id))
 			.innerJoin(receipt_split, eq(receipt_split.receipt_item_id, receipt_item.id))
-			.where(eq(receipt.groupId, groupId))
-			.groupBy(receipt.id, receipt.boughtById, receipt_split.userId);
+			.where(eq(receipt.groupId, groupId));
 	}
 
 	async getReceipt(receiptId: string) {

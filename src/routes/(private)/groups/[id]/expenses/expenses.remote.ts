@@ -2,6 +2,7 @@ import { form, query } from '$app/server';
 import { requireGroupMember, requireUsersInGroup } from '$lib/server/guards';
 import { paymentRepository } from '$lib/server/repository/paymentRepository';
 import { receiptRepository } from '$lib/server/repository/receptRepository';
+import { computeBalances } from '$lib/server/services/balanceService';
 import * as v from 'valibot';
 
 export const createExpense = form(
@@ -45,35 +46,12 @@ export const getExpenses = query(
 	}
 );
 
-type Balance = { userId: string; balanceCents: number };
-
-async function getGroupBalances(groupId: string): Promise<Balance[]> {
-	const map = new Map<string, number>();
-	const add = (userId: string, delta: number) => map.set(userId, (map.get(userId) ?? 0) + delta);
-
-	// ---- 1. Balances derived from receipt splits ----
-	const splitRows = await receiptRepository.getAmountsOwed(groupId);
-
-	for (const row of splitRows) {
-		if (row.buyerId === row.debtorId) continue; // buyer keeps own share
-		const amt = Number(row.amountOwed ?? 0);
-		add(row.debtorId, -amt); // debtor owes -> negative
-		add(row.buyerId, amt); // buyer is owed -> positive
-	}
-
-	// ---- 2. Apply payments (money already moved) ----
-	const paymentRows = await paymentRepository.getPaymentFlows(groupId);
-
-	for (const p of paymentRows) {
-		add(p.fromUserId, p.amount); // paid out -> improves their balance
-		add(p.toUserId, -p.amount); // received -> reduces what's owed to them
-	}
-
-	const balance = [...map.entries()]
-		.map(([userId, balanceCents]) => ({ userId, balanceCents }))
-		.filter((b) => b.balanceCents !== 0);
-
-	return balance;
+async function getGroupBalances(groupId: string) {
+	const [splits, payments] = await Promise.all([
+		receiptRepository.getSplits(groupId),
+		paymentRepository.getPaymentFlows(groupId)
+	]);
+	return computeBalances(splits, payments);
 }
 
 export const getBalaceSheet = query(
