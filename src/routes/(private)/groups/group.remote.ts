@@ -1,5 +1,5 @@
 import { form, query } from '$app/server';
-import { requireGroupOwner, requireUser } from '$lib/server/guards';
+import { requireGroupMember, requireGroupOwner, requireUser } from '$lib/server/guards';
 import { groupRepository } from '$lib/server/repository/groupRepository';
 import { error, redirect } from '@sveltejs/kit';
 import * as v from 'valibot';
@@ -17,9 +17,9 @@ export const getGroupById = query(v.string(), async (id: string) => {
 	if (!idResult.success) {
 		throw error(400, 'Invalid group ID');
 	}
-	const user = requireUser();
+	await requireGroupMember(id);
 
-	const groupResult = await groupRepository.getGroupForOwner(id, user.id);
+	const groupResult = await groupRepository.getGroup(id);
 
 	if (!groupResult) error(404, 'Group not found');
 

@@ -22,9 +22,9 @@ class GroupRepository {
 		return memberships.map((m) => m.group);
 	}
 
-	async getGroupForOwner(groupId: string, ownerId: string) {
+	async getGroup(groupId: string) {
 		return await db.query.group.findFirst({
-			where: and(eq(group.id, groupId), eq(group.ownerId, ownerId)),
+			where: eq(group.id, groupId),
 			with: {
 				members: {
 					with: {

@@ -10,9 +10,12 @@
 	const users = $derived(await getUsers());
 	const getGroupFn = getGroup();
 	const group = $derived(getGroupFn());
+	const isOwner = $derived(group?.ownerId === page.data.user?.id);
 </script>
 
-{#if group}
+{#if group && !isOwner}
+	<p class="p-4">Only the group owner can add members.</p>
+{:else if group}
 	<div class="grid p-4">
 		<form
 			{...addMember}
