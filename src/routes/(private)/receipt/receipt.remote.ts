@@ -1,6 +1,12 @@
 import { command, form, query } from '$app/server';
-import { requireGroupMember, requireReceiptAccess, requireUser } from '$lib/server/guards';
 import {
+	requireGroupMember,
+	requireReceiptAccess,
+	requireUser,
+	requireUsersInGroup
+} from '$lib/server/guards';
+import {
+	type CreateReceipt,
 	CreateReceiptSchema,
 	receiptRepository,
 	ReceiptSchema
@@ -29,8 +35,14 @@ export const parseReceiptImage = form(
 	}
 );
 
+/** Buyer and everyone an item is split with must belong to the receipt's group. */
+function receiptUserIds(data: CreateReceipt) {
+	return [data.boughtById, ...data.items.flatMap((i) => i.receiptSplit.map((s) => s.userId))];
+}
+
 export const createReceipt = command(CreateReceiptSchema, async (data) => {
 	await requireGroupMember(data.groupId);
+	await requireUsersInGroup(data.groupId, receiptUserIds(data));
 
 	const receipt = await receiptRepository.createReceipt({ ...data });
 	return receipt;
@@ -59,6 +71,7 @@ export const getReceipt = query(
 export const patchReceipt = command(ReceiptSchema, async (data) => {
 	await requireReceiptAccess(data.id);
 	await requireGroupMember(data.groupId);
+	await requireUsersInGroup(data.groupId, receiptUserIds(data));
 
 	//TODO: Actually patch the receipt
 	await receiptRepository.deleteReceipt(data.id);

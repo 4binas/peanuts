@@ -1,5 +1,5 @@
 import { command, form, query } from '$app/server';
-import { requireGroupMember, requirePaymentAccess } from '$lib/server/guards';
+import { requireGroupMember, requirePaymentAccess, requireUsersInGroup } from '$lib/server/guards';
 import { paymentRepository } from '$lib/server/repository/paymentRepository';
 import * as v from 'valibot';
 
@@ -15,6 +15,7 @@ export const createPayment = form(
 	}),
 	async ({ fromUserId, toUserId, currency, amount, description, groupId, paymentId }) => {
 		await requireGroupMember(groupId);
+		await requireUsersInGroup(groupId, [fromUserId, toUserId]);
 
 		const values = {
 			groupId: groupId,

@@ -1,5 +1,5 @@
 import { form, query } from '$app/server';
-import { requireGroupMember, requireUser } from '$lib/server/guards';
+import { requireGroupOwner, requireUser } from '$lib/server/guards';
 import { groupRepository } from '$lib/server/repository/groupRepository';
 import { error, redirect } from '@sveltejs/kit';
 import * as v from 'valibot';
@@ -47,7 +47,7 @@ export const addMember = form(
 		userId: v.string()
 	}),
 	async ({ groupId, userId }) => {
-		await requireGroupMember(groupId);
+		await requireGroupOwner(groupId);
 
 		await groupRepository.addMember(groupId, userId);
 	}

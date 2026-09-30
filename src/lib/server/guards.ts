@@ -24,6 +24,20 @@ export async function requireGroupMember(groupId: string) {
 	return user;
 }
 
+/** Returns the logged-in user if they own the group, otherwise throws 401/403. */
+export async function requireGroupOwner(groupId: string) {
+	const user = requireUser();
+	if (!(await groupRepository.isOwner(groupId, user.id))) error(403, 'Forbidden');
+	return user;
+}
+
+/** Throws 400 unless every given user id is a member of the group. */
+export async function requireUsersInGroup(groupId: string, userIds: string[]) {
+	const unique = [...new Set(userIds)];
+	const members = await groupRepository.getMemberIds(groupId, unique);
+	if (unique.some((id) => !members.has(id))) error(400, 'User is not a member of this group');
+}
+
 /** Returns the receipt if the logged-in user is a member of its group, otherwise throws 401/403/404. */
 export async function requireReceiptAccess(receiptId: string) {
 	requireUser();

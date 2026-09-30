@@ -1,5 +1,5 @@
 import { form, query } from '$app/server';
-import { requireGroupMember } from '$lib/server/guards';
+import { requireGroupMember, requireUsersInGroup } from '$lib/server/guards';
 import { paymentRepository } from '$lib/server/repository/paymentRepository';
 import { receiptRepository } from '$lib/server/repository/receptRepository';
 import * as v from 'valibot';
@@ -14,6 +14,7 @@ export const createExpense = form(
 	}),
 	async (data) => {
 		await requireGroupMember(data.groupId);
+		await requireUsersInGroup(data.groupId, [data.boughtById]);
 
 		try {
 			const newReceipt = await receiptRepository.createEmptyReceipt({

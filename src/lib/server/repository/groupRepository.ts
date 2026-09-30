@@ -1,6 +1,6 @@
 import { db } from '../db';
 import { group, groupMembers } from '../db/schema';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 
 class GroupRepository {
 	async getGroupsForUser(userId: string) {
@@ -42,6 +42,25 @@ class GroupRepository {
 			.where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userId, userId)))
 			.limit(1);
 		return rows.length > 0;
+	}
+
+	async isOwner(groupId: string, userId: string) {
+		const rows = await db
+			.select({ id: group.id })
+			.from(group)
+			.where(and(eq(group.id, groupId), eq(group.ownerId, userId)))
+			.limit(1);
+		return rows.length > 0;
+	}
+
+	/** Returns which of the given user ids are members of the group. */
+	async getMemberIds(groupId: string, userIds: string[]) {
+		if (userIds.length === 0) return new Set<string>();
+		const rows = await db
+			.select({ userId: groupMembers.userId })
+			.from(groupMembers)
+			.where(and(eq(groupMembers.groupId, groupId), inArray(groupMembers.userId, userIds)));
+		return new Set(rows.map((r) => r.userId));
 	}
 
 	async createGroup(name: string, currency: string, ownerId: string) {
