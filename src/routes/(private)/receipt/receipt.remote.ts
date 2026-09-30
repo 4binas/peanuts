@@ -1,5 +1,5 @@
-import { command, form, getRequestEvent, query } from '$app/server';
-import { getAuth } from '$lib/server/auth';
+import { command, form, query } from '$app/server';
+import { requireGroupMember, requireReceiptAccess, requireUser } from '$lib/server/guards';
 import {
 	CreateReceiptSchema,
 	receiptRepository,
@@ -14,14 +14,8 @@ export const parseReceiptImage = form(
 		image: v.pipe(v.file(), v.mimeType(['image/jpeg', 'image/png', 'image/webp']), v.minSize(1))
 	}),
 	async (data) => {
-		const event = getRequestEvent();
-		const session = await getAuth().api.getSession({
-			headers: event.request.headers
-		});
+		requireUser();
 
-		if (!session) {
-			throw new Error('Unauthorized');
-		}
 		const buffer = Buffer.from(await data.image.arrayBuffer());
 		const base64 = buffer.toString('base64');
 		const dataUrl = `data:${data.image.type};base64,${base64}`;
@@ -36,16 +30,8 @@ export const parseReceiptImage = form(
 );
 
 export const createReceipt = command(CreateReceiptSchema, async (data) => {
-	const event = getRequestEvent();
-	const session = await getAuth().api.getSession({
-		headers: event.request.headers
-	});
+	await requireGroupMember(data.groupId);
 
-	if (!session) {
-		throw new Error('Unauthorized');
-	}
-
-	//TODO: Check if the user belongs to the group!!
 	const receipt = await receiptRepository.createReceipt({ ...data });
 	return receipt;
 });
@@ -55,6 +41,8 @@ export const deleteReceipt = command(
 		receiptId: v.pipe(v.string(), v.nonEmpty())
 	}),
 	async (data) => {
+		await requireReceiptAccess(data.receiptId);
+
 		await receiptRepository.deleteReceipt(data.receiptId);
 	}
 );
@@ -64,22 +52,14 @@ export const getReceipt = query(
 		receiptId: v.pipe(v.string(), v.nonEmpty())
 	}),
 	async (data) => {
-		//TODO: Check if the user belongs to the group!!
-		const receipt = await receiptRepository.getReceipt(data.receiptId);
-		return receipt;
+		return await requireReceiptAccess(data.receiptId);
 	}
 );
 
 export const patchReceipt = command(ReceiptSchema, async (data) => {
-	const event = getRequestEvent();
-	const session = await getAuth().api.getSession({
-		headers: event.request.headers
-	});
+	await requireReceiptAccess(data.id);
+	await requireGroupMember(data.groupId);
 
-	if (!session) {
-		throw new Error('Unauthorized');
-	}
-	//TODO: Check if the user belongs to the group!!
 	//TODO: Actually patch the receipt
 	await receiptRepository.deleteReceipt(data.id);
 	const receipt = await receiptRepository.createReceipt({ ...data });

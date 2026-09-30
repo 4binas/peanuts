@@ -1,8 +1,6 @@
-import { command, form, getRequestEvent, query } from '$app/server';
-import { getAuth } from '$lib/server/auth';
-import { groupRepository } from '$lib/server/repository/groupRepository';
+import { command, form, query } from '$app/server';
+import { requireGroupMember, requirePaymentAccess } from '$lib/server/guards';
 import { paymentRepository } from '$lib/server/repository/paymentRepository';
-import { error } from '@sveltejs/kit';
 import * as v from 'valibot';
 
 export const createPayment = form(
@@ -16,18 +14,7 @@ export const createPayment = form(
 		description: v.pipe(v.string())
 	}),
 	async ({ fromUserId, toUserId, currency, amount, description, groupId, paymentId }) => {
-		const event = getRequestEvent();
-		// Check the user is logged in
-		const session = await getAuth().api.getSession({
-			headers: event.request.headers
-		});
-		if (!session?.user.id) error(401, 'Unauthorized');
-
-		const { user } = session;
-		const gp = await groupRepository.getGroupWithMembers(groupId);
-		if (!gp) error(404, 'Group not found');
-		if (gp.members.find((m) => m.userId === user.id) === undefined)
-			error(403, 'Forbidden User not in group');
+		await requireGroupMember(groupId);
 
 		const values = {
 			groupId: groupId,
@@ -39,6 +26,7 @@ export const createPayment = form(
 		};
 
 		if (paymentId) {
+			await requirePaymentAccess(paymentId);
 			await paymentRepository.updatePayment(paymentId, values);
 			return;
 		}
@@ -52,6 +40,8 @@ export const listPayments = query(
 		groupId: v.pipe(v.string(), v.nonEmpty())
 	}),
 	async ({ groupId }) => {
+		await requireGroupMember(groupId);
+
 		const payments = await paymentRepository.getPayments(groupId);
 		return payments;
 	}
@@ -62,12 +52,7 @@ export const deletePayment = command(
 		paymentId: v.pipe(v.string(), v.nonEmpty())
 	}),
 	async (data) => {
-		const event = getRequestEvent();
-		// Check the user is logged in
-		const session = await getAuth().api.getSession({
-			headers: event.request.headers
-		});
-		if (!session?.user.id) error(401, 'Unauthorized');
+		await requirePaymentAccess(data.paymentId);
 
 		await paymentRepository.deletePayment(data.paymentId);
 	}
@@ -78,13 +63,6 @@ export const getPayment = query(
 		paymentId: v.pipe(v.string(), v.nonEmpty())
 	}),
 	async (data) => {
-		const event = getRequestEvent();
-		// Check the user is logged in
-		const session = await getAuth().api.getSession({
-			headers: event.request.headers
-		});
-		if (!session?.user.id) error(401, 'Unauthorized');
-
-		return await paymentRepository.getPayment(data.paymentId);
+		return await requirePaymentAccess(data.paymentId);
 	}
 );

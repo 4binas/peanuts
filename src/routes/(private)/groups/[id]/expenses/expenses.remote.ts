@@ -1,6 +1,5 @@
-import { form, getRequestEvent, query } from '$app/server';
-import { getAuth } from '$lib/server/auth';
-import { groupRepository } from '$lib/server/repository/groupRepository';
+import { form, query } from '$app/server';
+import { requireGroupMember } from '$lib/server/guards';
 import { paymentRepository } from '$lib/server/repository/paymentRepository';
 import { receiptRepository } from '$lib/server/repository/receptRepository';
 import * as v from 'valibot';
@@ -14,14 +13,7 @@ export const createExpense = form(
 		storeName: v.pipe(v.string(), v.nonEmpty())
 	}),
 	async (data) => {
-		const event = getRequestEvent();
-		const session = await getAuth().api.getSession({
-			headers: event.request.headers
-		});
-
-		if (!session) {
-			throw new Error('Unauthorized');
-		}
+		await requireGroupMember(data.groupId);
 
 		try {
 			const newReceipt = await receiptRepository.createEmptyReceipt({
@@ -41,19 +33,7 @@ export const getExpenses = query(
 		groupId: v.pipe(v.string(), v.nonEmpty())
 	}),
 	async (data) => {
-		const event = getRequestEvent();
-		const session = await getAuth().api.getSession({
-			headers: event.request.headers
-		});
-
-		if (!session) {
-			throw new Error('Unauthorized');
-		}
-		const isMember = await groupRepository.isMember(data.groupId, session.user.id);
-
-		if (!isMember) {
-			throw new Error('Unauthorized');
-		}
+		await requireGroupMember(data.groupId);
 
 		try {
 			const expenses = await receiptRepository.getReceiptsWithItems(data.groupId);
@@ -100,6 +80,8 @@ export const getBalaceSheet = query(
 		groupId: v.pipe(v.string(), v.nonEmpty())
 	}),
 	async (data) => {
+		await requireGroupMember(data.groupId);
+
 		return await getGroupBalances(data.groupId);
 	}
 );

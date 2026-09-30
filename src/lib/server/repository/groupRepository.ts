@@ -35,15 +35,6 @@ class GroupRepository {
 		});
 	}
 
-	async getGroupWithMembers(groupId: string) {
-		return await db.query.group.findFirst({
-			where: eq(group.id, groupId),
-			with: {
-				members: true
-			}
-		});
-	}
-
 	async isMember(groupId: string, userId: string) {
 		const rows = await db
 			.select()
