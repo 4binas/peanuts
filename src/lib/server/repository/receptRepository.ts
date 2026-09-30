@@ -1,6 +1,6 @@
 import { db } from '../db';
 import { receipt, receipt_item, receipt_split } from '../db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 export const ReceiptItemSplitSchema = z.object({
@@ -39,6 +39,44 @@ class ReceiptRepository {
 		return receipts;
 	}
 
+	async getReceiptsWithItems(groupId: string) {
+		return await db.query.receipt.findMany({
+			where: eq(receipt.groupId, groupId),
+			with: {
+				items: {
+					with: {
+						receipt_splits: true
+					}
+				}
+			}
+		});
+	}
+
+	async createEmptyReceipt(values: { groupId: string; boughtById: string; storeName: string }) {
+		return await db
+			.insert(receipt)
+			.values(values)
+			.returning()
+			.then(([r]) => r);
+	}
+
+	/** Amount each debtor owes the buyer, per receipt, in cents. */
+	async getAmountsOwed(groupId: string) {
+		return await db
+			.select({
+				buyerId: receipt.boughtById,
+				debtorId: receipt_split.userId,
+				amountOwed: sql<number>`
+        sum(${receipt_item.price} * ${receipt_split.splitPercentage} / 100.0)
+      `
+			})
+			.from(receipt)
+			.innerJoin(receipt_item, eq(receipt_item.receiptId, receipt.id))
+			.innerJoin(receipt_split, eq(receipt_split.receipt_item_id, receipt_item.id))
+			.where(eq(receipt.groupId, groupId))
+			.groupBy(receipt.id, receipt.boughtById, receipt_split.userId);
+	}
+
 	async getReceipt(receiptId: string) {
 		const res = await db.query.receipt.findFirst({
 			where: eq(receipt?.id, receiptId),
@@ -54,15 +92,12 @@ class ReceiptRepository {
 	}
 
 	async deleteReceipt(receiptId: string) {
-		const tx = await db.transaction(async () => {
-			await db.delete(receipt).where(eq(receipt.id, receiptId));
-		});
-		return tx;
+		await db.delete(receipt).where(eq(receipt.id, receiptId));
 	}
 
 	async createReceipt(uploadReceipt: CreateReceipt) {
-		const tx = await db.transaction(async () => {
-			const newReceipt = await db
+		return await db.transaction(async (tx) => {
+			const newReceipt = await tx
 				.insert(receipt)
 				.values({
 					boughtById: uploadReceipt.boughtById,
@@ -93,7 +128,7 @@ class ReceiptRepository {
 					});
 				}
 				if (items.length > 0) {
-					const insertedItems = await db.insert(receipt_item).values(items).returning();
+					const insertedItems = await tx.insert(receipt_item).values(items).returning();
 					for (const [index, value] of insertedItems.entries()) {
 						itemSplits.push(
 							...uploadReceipt.items[index].receiptSplit.map((split) => ({
@@ -103,13 +138,11 @@ class ReceiptRepository {
 							}))
 						);
 					}
-					console.log(itemSplits);
-					await db.insert(receipt_split).values(itemSplits);
+					await tx.insert(receipt_split).values(itemSplits);
 				}
 			}
 			return newReceipt;
 		});
-		return tx;
 	}
 }
 

@@ -1,6 +1,6 @@
 import { getRequestEvent, query } from '$app/server';
 import { getAuth } from '$lib/server/auth';
-import { db } from '$lib/server/db';
+import { userRepository } from '$lib/server/repository/userRepository';
 import { error } from '@sveltejs/kit';
 
 export const getUsers = query(async () => {
@@ -11,6 +11,6 @@ export const getUsers = query(async () => {
 
 	if (!session?.user.id) error(401, 'Unauthorized');
 
-	const users = await db.query.user.findMany();
+	const users = await userRepository.getUsers();
 	return users;
 });

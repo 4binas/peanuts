@@ -1,9 +1,7 @@
 import { form, getRequestEvent, query } from '$app/server';
 import { getAuth } from '$lib/server/auth';
-import { db } from '$lib/server/db';
-import { group, groupMembers } from '$lib/server/db/schema';
+import { groupRepository } from '$lib/server/repository/groupRepository';
 import { error, redirect } from '@sveltejs/kit';
-import { and, eq } from 'drizzle-orm';
 import * as v from 'valibot';
 import z from 'zod';
 
@@ -15,23 +13,7 @@ export const getGroups = query(async () => {
 
 	if (!session?.user.id) error(401, 'Unauthorized');
 
-	// const groups = await db.select().from(group).where(eq(group.ownerId, session.user.id));$
-	const groups = await db.query.groupMembers.findMany({
-		where: eq(groupMembers.userId, session.user.id),
-		with: {
-			group: {
-				with: {
-					owner: true,
-					members: {
-						with: {
-							user: true
-						}
-					}
-				}
-			}
-		}
-	});
-	return groups.map((g) => g.group);
+	return await groupRepository.getGroupsForUser(session.user.id);
 });
 
 export const getGroupById = query(v.string(), async (id: string) => {
@@ -47,16 +29,7 @@ export const getGroupById = query(v.string(), async (id: string) => {
 	if (!session?.user.id) error(401, 'Unauthorized');
 
 	if (!id) error(400, 'Group ID is required');
-	const groupResult = await db.query.group.findFirst({
-		where: and(eq(group.id, id), eq(group.ownerId, session.user.id)),
-		with: {
-			members: {
-				with: {
-					user: true
-				}
-			}
-		}
-	});
+	const groupResult = await groupRepository.getGroupForOwner(id, session.user.id);
 
 	if (!groupResult) error(404, 'Group not found');
 
@@ -77,24 +50,7 @@ export const createGroup = form(
 		if (!session?.user.id) error(401, 'Unauthorized');
 
 		// Insert into the database
-		const new_group = await db.transaction(async (tx) => {
-			const new_group = await tx
-				.insert(group)
-				.values({
-					name,
-					currency,
-					ownerId: session.user.id
-				})
-				.returning()
-				.then((res) => res[0]);
-
-			const membersToInsert = [{ groupId: new_group.id, userId: session.user.id }];
-
-			if (membersToInsert.length > 0) {
-				await tx.insert(groupMembers).values(membersToInsert);
-			}
-			return new_group;
-		});
+		const new_group = await groupRepository.createGroup(name, currency, session.user.id);
 
 		// Redirect to the newly created page
 		redirect(303, `/groups/${new_group.id}`);
@@ -115,8 +71,6 @@ export const addMember = form(
 		if (!session?.user.id) error(401, 'Unauthorized');
 
 		// Insert into the database
-		await db.transaction(async (tx) => {
-			await tx.insert(groupMembers).values({ groupId, userId });
-		});
+		await groupRepository.addMember(groupId, userId);
 	}
 );
