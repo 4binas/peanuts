@@ -44,15 +44,6 @@ class GroupRepository {
 		return rows.length > 0;
 	}
 
-	async isOwner(groupId: string, userId: string) {
-		const rows = await db
-			.select({ id: group.id })
-			.from(group)
-			.where(and(eq(group.id, groupId), eq(group.ownerId, userId)))
-			.limit(1);
-		return rows.length > 0;
-	}
-
 	/** Returns which of the given user ids are members of the group. */
 	async getMemberIds(groupId: string, userIds: string[]) {
 		if (userIds.length === 0) return new Set<string>();
