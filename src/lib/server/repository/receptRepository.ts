@@ -39,6 +39,43 @@ class ReceiptRepository {
 		return receipts;
 	}
 
+	async getReceiptsWithItems(groupId: string) {
+		return await db.query.receipt.findMany({
+			where: eq(receipt.groupId, groupId),
+			with: {
+				items: {
+					with: {
+						receipt_splits: true
+					}
+				}
+			}
+		});
+	}
+
+	async createEmptyReceipt(values: { groupId: string; boughtById: string; storeName: string }) {
+		return await db
+			.insert(receipt)
+			.values(values)
+			.returning()
+			.then(([r]) => r);
+	}
+
+	/** One row per item split in the group, with the item's price in cents. */
+	async getSplits(groupId: string) {
+		return await db
+			.select({
+				itemId: receipt_item.id,
+				buyerId: receipt.boughtById,
+				price: receipt_item.price,
+				userId: receipt_split.userId,
+				splitPercentage: receipt_split.splitPercentage
+			})
+			.from(receipt)
+			.innerJoin(receipt_item, eq(receipt_item.receiptId, receipt.id))
+			.innerJoin(receipt_split, eq(receipt_split.receipt_item_id, receipt_item.id))
+			.where(eq(receipt.groupId, groupId));
+	}
+
 	async getReceipt(receiptId: string) {
 		const res = await db.query.receipt.findFirst({
 			where: eq(receipt?.id, receiptId),
@@ -54,15 +91,12 @@ class ReceiptRepository {
 	}
 
 	async deleteReceipt(receiptId: string) {
-		const tx = await db.transaction(async () => {
-			await db.delete(receipt).where(eq(receipt.id, receiptId));
-		});
-		return tx;
+		await db.delete(receipt).where(eq(receipt.id, receiptId));
 	}
 
 	async createReceipt(uploadReceipt: CreateReceipt) {
-		const tx = await db.transaction(async () => {
-			const newReceipt = await db
+		return await db.transaction(async (tx) => {
+			const newReceipt = await tx
 				.insert(receipt)
 				.values({
 					boughtById: uploadReceipt.boughtById,
@@ -93,7 +127,7 @@ class ReceiptRepository {
 					});
 				}
 				if (items.length > 0) {
-					const insertedItems = await db.insert(receipt_item).values(items).returning();
+					const insertedItems = await tx.insert(receipt_item).values(items).returning();
 					for (const [index, value] of insertedItems.entries()) {
 						itemSplits.push(
 							...uploadReceipt.items[index].receiptSplit.map((split) => ({
@@ -103,13 +137,11 @@ class ReceiptRepository {
 							}))
 						);
 					}
-					console.log(itemSplits);
-					await db.insert(receipt_split).values(itemSplits);
+					await tx.insert(receipt_split).values(itemSplits);
 				}
 			}
 			return newReceipt;
 		});
-		return tx;
 	}
 }
 

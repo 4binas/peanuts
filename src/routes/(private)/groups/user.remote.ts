@@ -1,16 +1,10 @@
-import { getRequestEvent, query } from '$app/server';
-import { getAuth } from '$lib/server/auth';
-import { db } from '$lib/server/db';
-import { error } from '@sveltejs/kit';
+import { query } from '$app/server';
+import { requireUser } from '$lib/server/guards';
+import { userRepository } from '$lib/server/repository/userRepository';
 
 export const getUsers = query(async () => {
-	const event = getRequestEvent();
-	const session = await getAuth().api.getSession({
-		headers: event.request.headers
-	});
+	requireUser();
 
-	if (!session?.user.id) error(401, 'Unauthorized');
-
-	const users = await db.query.user.findMany();
+	const users = await userRepository.getUsers();
 	return users;
 });

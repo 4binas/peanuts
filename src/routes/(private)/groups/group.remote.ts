@@ -1,37 +1,14 @@
-import { form, getRequestEvent, query } from '$app/server';
-import { getAuth } from '$lib/server/auth';
-import { db } from '$lib/server/db';
-import { group, groupMembers } from '$lib/server/db/schema';
+import { form, query } from '$app/server';
+import { requireGroupMember, requireUser } from '$lib/server/guards';
+import { groupRepository } from '$lib/server/repository/groupRepository';
 import { error, redirect } from '@sveltejs/kit';
-import { and, eq } from 'drizzle-orm';
 import * as v from 'valibot';
 import z from 'zod';
 
 export const getGroups = query(async () => {
-	const event = getRequestEvent();
-	const session = await getAuth().api.getSession({
-		headers: event.request.headers
-	});
+	const user = requireUser();
 
-	if (!session?.user.id) error(401, 'Unauthorized');
-
-	// const groups = await db.select().from(group).where(eq(group.ownerId, session.user.id));$
-	const groups = await db.query.groupMembers.findMany({
-		where: eq(groupMembers.userId, session.user.id),
-		with: {
-			group: {
-				with: {
-					owner: true,
-					members: {
-						with: {
-							user: true
-						}
-					}
-				}
-			}
-		}
-	});
-	return groups.map((g) => g.group);
+	return await groupRepository.getGroupsForUser(user.id);
 });
 
 export const getGroupById = query(v.string(), async (id: string) => {
@@ -40,23 +17,9 @@ export const getGroupById = query(v.string(), async (id: string) => {
 	if (!idResult.success) {
 		throw error(400, 'Invalid group ID');
 	}
-	const event = getRequestEvent();
-	const session = await getAuth().api.getSession({
-		headers: event.request.headers
-	});
-	if (!session?.user.id) error(401, 'Unauthorized');
+	await requireGroupMember(id);
 
-	if (!id) error(400, 'Group ID is required');
-	const groupResult = await db.query.group.findFirst({
-		where: and(eq(group.id, id), eq(group.ownerId, session.user.id)),
-		with: {
-			members: {
-				with: {
-					user: true
-				}
-			}
-		}
-	});
+	const groupResult = await groupRepository.getGroup(id);
 
 	if (!groupResult) error(404, 'Group not found');
 
@@ -69,32 +32,9 @@ export const createGroup = form(
 		currency: v.pipe(v.string(), v.length(3), v.nonEmpty())
 	}),
 	async ({ name, currency }) => {
-		const event = getRequestEvent();
-		// Check the user is logged in
-		const session = await getAuth().api.getSession({
-			headers: event.request.headers
-		});
-		if (!session?.user.id) error(401, 'Unauthorized');
+		const user = requireUser();
 
-		// Insert into the database
-		const new_group = await db.transaction(async (tx) => {
-			const new_group = await tx
-				.insert(group)
-				.values({
-					name,
-					currency,
-					ownerId: session.user.id
-				})
-				.returning()
-				.then((res) => res[0]);
-
-			const membersToInsert = [{ groupId: new_group.id, userId: session.user.id }];
-
-			if (membersToInsert.length > 0) {
-				await tx.insert(groupMembers).values(membersToInsert);
-			}
-			return new_group;
-		});
+		const new_group = await groupRepository.createGroup(name, currency, user.id);
 
 		// Redirect to the newly created page
 		redirect(303, `/groups/${new_group.id}`);
@@ -107,16 +47,8 @@ export const addMember = form(
 		userId: v.string()
 	}),
 	async ({ groupId, userId }) => {
-		const event = getRequestEvent();
-		// Check the user is logged in
-		const session = await getAuth().api.getSession({
-			headers: event.request.headers
-		});
-		if (!session?.user.id) error(401, 'Unauthorized');
+		await requireGroupMember(groupId);
 
-		// Insert into the database
-		await db.transaction(async (tx) => {
-			await tx.insert(groupMembers).values({ groupId, userId });
-		});
+		await groupRepository.addMember(groupId, userId);
 	}
 );

@@ -1,10 +1,7 @@
-import { command, form, getRequestEvent, query } from '$app/server';
-import { getAuth } from '$lib/server/auth';
-import { db } from '$lib/server/db';
-import { group, payment } from '$lib/server/db/schema';
-import { error } from '@sveltejs/kit';
+import { command, form, query } from '$app/server';
+import { requireGroupMember, requirePaymentAccess, requireUsersInGroup } from '$lib/server/guards';
+import { paymentRepository } from '$lib/server/repository/paymentRepository';
 import * as v from 'valibot';
-import { eq } from 'drizzle-orm';
 
 export const createPayment = form(
 	v.object({
@@ -17,49 +14,25 @@ export const createPayment = form(
 		description: v.pipe(v.string())
 	}),
 	async ({ fromUserId, toUserId, currency, amount, description, groupId, paymentId }) => {
-		const event = getRequestEvent();
-		// Check the user is logged in
-		const session = await getAuth().api.getSession({
-			headers: event.request.headers
-		});
-		if (!session?.user.id) error(401, 'Unauthorized');
+		await requireGroupMember(groupId);
+		await requireUsersInGroup(groupId, [fromUserId, toUserId]);
 
-		const { user } = session;
-		const gp = await db.query.group.findFirst({
-			where: eq(group.id, groupId),
-			with: {
-				members: true
-			}
-		});
-		if (!gp) error(404, 'Group not found');
-		console.log(gp);
-		console.log(user);
-		if (gp.members.find((m) => m.userId === user.id) === undefined)
-			error(403, 'Forbidden User not in group');
-
-		if (paymentId) {
-			await db
-				.update(payment)
-				.set({
-					groupId: groupId,
-					amount: parseInt((amount * 100).toFixed(0)),
-					currency: currency,
-					description: description,
-					fromUserId: fromUserId,
-					toUserId: toUserId
-				})
-				.where(eq(payment.id, paymentId));
-			return;
-		}
-
-		await db.insert(payment).values({
+		const values = {
 			groupId: groupId,
 			amount: parseInt((amount * 100).toFixed(0)),
 			currency: currency,
 			description: description,
 			fromUserId: fromUserId,
 			toUserId: toUserId
-		});
+		};
+
+		if (paymentId) {
+			await requirePaymentAccess(paymentId);
+			await paymentRepository.updatePayment(paymentId, values);
+			return;
+		}
+
+		await paymentRepository.createPayment(values);
 	}
 );
 
@@ -68,9 +41,9 @@ export const listPayments = query(
 		groupId: v.pipe(v.string(), v.nonEmpty())
 	}),
 	async ({ groupId }) => {
-		const payments = await db.query.payment.findMany({
-			where: eq(payment.groupId, groupId)
-		});
+		await requireGroupMember(groupId);
+
+		const payments = await paymentRepository.getPayments(groupId);
 		return payments;
 	}
 );
@@ -80,14 +53,9 @@ export const deletePayment = command(
 		paymentId: v.pipe(v.string(), v.nonEmpty())
 	}),
 	async (data) => {
-		const event = getRequestEvent();
-		// Check the user is logged in
-		const session = await getAuth().api.getSession({
-			headers: event.request.headers
-		});
-		if (!session?.user.id) error(401, 'Unauthorized');
+		await requirePaymentAccess(data.paymentId);
 
-		await db.delete(payment).where(eq(payment.id, data.paymentId));
+		await paymentRepository.deletePayment(data.paymentId);
 	}
 );
 
@@ -96,15 +64,6 @@ export const getPayment = query(
 		paymentId: v.pipe(v.string(), v.nonEmpty())
 	}),
 	async (data) => {
-		const event = getRequestEvent();
-		// Check the user is logged in
-		const session = await getAuth().api.getSession({
-			headers: event.request.headers
-		});
-		if (!session?.user.id) error(401, 'Unauthorized');
-
-		return await db.query.payment.findFirst({
-			where: eq(payment.id, data.paymentId)
-		});
+		return await requirePaymentAccess(data.paymentId);
 	}
 );
