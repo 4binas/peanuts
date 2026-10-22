@@ -50,6 +50,13 @@
       "when": 1787300912298,
       "tag": "0006_tense_firestar",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792677230616,
+      "tag": "0007_conscious_molten_man",
+      "breakpoints": true
     }
   ]
 }

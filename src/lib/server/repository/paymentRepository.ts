@@ -25,7 +25,11 @@ class PaymentRepository {
 	}
 
 	async createPayment(values: PaymentInput) {
-		await db.insert(payment).values(values);
+		return await db
+			.insert(payment)
+			.values(values)
+			.returning()
+			.then(([p]) => p);
 	}
 
 	async updatePayment(paymentId: string, values: PaymentInput) {

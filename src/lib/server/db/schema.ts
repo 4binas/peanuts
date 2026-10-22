@@ -273,3 +273,40 @@ export const paymentRelations = relations(payment, ({ one }) => ({
 		references: [user.id]
 	})
 }));
+
+// Notification
+
+/** One row per recipient, so read state is tracked per user. */
+export const notification = pgTable(
+	'notification',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		actorId: text('actor_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		groupId: uuid('group_id')
+			.notNull()
+			.references(() => group.id, { onDelete: 'cascade' }),
+		type: varchar('type', { length: 32 }).notNull(),
+		// Receipt or payment id; not a foreign key so notifications outlive deleted entities
+		entityId: uuid('entity_id'),
+		message: text('message').notNull(),
+		readAt: timestamp('read_at'),
+		createdAt: timestamp('created_at').defaultNow().notNull()
+	},
+	(table) => [index('notification_userId_createdAt_idx').on(table.userId, table.createdAt)]
+);
+
+export const notificationRelations = relations(notification, ({ one }) => ({
+	actor: one(user, {
+		fields: [notification.actorId],
+		references: [user.id]
+	}),
+	group: one(group, {
+		fields: [notification.groupId],
+		references: [group.id]
+	})
+}));

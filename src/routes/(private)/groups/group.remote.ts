@@ -1,6 +1,11 @@
 import { form, query } from '$app/server';
 import { requireGroupMember, requireUser } from '$lib/server/guards';
 import { groupRepository } from '$lib/server/repository/groupRepository';
+import {
+	memberName,
+	NotificationType,
+	notifyGroup
+} from '$lib/server/services/notificationService';
 import { error, redirect } from '@sveltejs/kit';
 import * as v from 'valibot';
 import z from 'zod';
@@ -47,8 +52,16 @@ export const addMember = form(
 		userId: v.string()
 	}),
 	async ({ groupId, userId }) => {
-		await requireGroupMember(groupId);
+		const user = await requireGroupMember(groupId);
 
 		await groupRepository.addMember(groupId, userId);
+
+		await notifyGroup({
+			groupId,
+			actorId: user.id,
+			type: NotificationType.memberAdded,
+			message: ({ members, recipientId }) =>
+				`added ${memberName(members, userId, recipientId)} to the group`
+		});
 	}
 );
