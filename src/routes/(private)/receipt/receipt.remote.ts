@@ -19,6 +19,7 @@ import {
 	receiptCurrency,
 	receiptTotal
 } from '$lib/server/services/notificationService';
+import { error } from '@sveltejs/kit';
 import * as v from 'valibot';
 
 export const parseReceiptImage = form(
@@ -101,13 +102,12 @@ export const getReceipt = query(
 );
 
 export const patchReceipt = command(ReceiptSchema, async (data) => {
-	await requireReceiptAccess(data.id);
+	const existing = await requireReceiptAccess(data.id);
+	if (existing.groupId !== data.groupId) error(400, 'Expenses cannot be moved to another group');
 	const user = await requireGroupMember(data.groupId);
 	await requireUsersInGroup(data.groupId, receiptUserIds(data));
 
-	//TODO: Actually patch the receipt
-	await receiptRepository.deleteReceipt(data.id);
-	const receipt = await receiptRepository.createReceipt({ ...data });
+	const receipt = await receiptRepository.updateReceipt(data);
 
 	await notifyGroup({
 		groupId: data.groupId,

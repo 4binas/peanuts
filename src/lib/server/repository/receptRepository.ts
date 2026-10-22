@@ -106,42 +106,66 @@ class ReceiptRepository {
 				})
 				.returning()
 				.then((res) => res[0]);
-			const items = [];
-			const itemSplits: { userId: string; splitPercentage: number; receipt_item_id: string }[] = [];
-			if (uploadReceipt.items) {
-				for (const i of uploadReceipt.items) {
-					if (!i.receiptSplit) {
-						throw new Error('receiptSplit must be split with users can be split with one');
-					}
-					const totalSplit = i.receiptSplit.reduce((acc, split) => acc + split.splitPercentage, 0);
-					if (totalSplit !== 100) {
-						throw new Error('receiptSplit must sum to 100');
-					}
-
-					items.push({
-						name: i.name,
-						description: i.description,
-						currency: i.currency,
-						receiptId: newReceipt.id,
-						price: Number.parseInt(i.price.toFixed(0), 10)
-					});
-				}
-				if (items.length > 0) {
-					const insertedItems = await tx.insert(receipt_item).values(items).returning();
-					for (const [index, value] of insertedItems.entries()) {
-						itemSplits.push(
-							...uploadReceipt.items[index].receiptSplit.map((split) => ({
-								userId: split.userId,
-								splitPercentage: split.splitPercentage,
-								receipt_item_id: value.id
-							}))
-						);
-					}
-					await tx.insert(receipt_split).values(itemSplits);
-				}
-			}
+			await insertItems(tx, newReceipt.id, uploadReceipt.items);
 			return newReceipt;
 		});
+	}
+
+	/** Updates the receipt in place, keeping its id, and replaces its items. */
+	async updateReceipt(data: Receipt) {
+		return await db.transaction(async (tx) => {
+			const updated = await tx
+				.update(receipt)
+				.set({
+					boughtById: data.boughtById,
+					storeName: data.storeName,
+					boughtAt: new Date(data.boughtAt)
+				})
+				.where(eq(receipt.id, data.id))
+				.returning()
+				.then((res) => res[0]);
+			// Splits are removed with their items via ON DELETE CASCADE
+			await tx.delete(receipt_item).where(eq(receipt_item.receiptId, data.id));
+			await insertItems(tx, data.id, data.items);
+			return updated;
+		});
+	}
+}
+
+type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+async function insertItems(tx: Transaction, receiptId: string, receiptItems: ReceiptItem[]) {
+	if (!receiptItems || receiptItems.length === 0) return;
+
+	const items = [];
+	for (const i of receiptItems) {
+		if (!i.receiptSplit) {
+			throw new Error('receiptSplit must be split with users can be split with one');
+		}
+		const totalSplit = i.receiptSplit.reduce((acc, split) => acc + split.splitPercentage, 0);
+		if (totalSplit !== 100) {
+			throw new Error('receiptSplit must sum to 100');
+		}
+
+		items.push({
+			name: i.name,
+			description: i.description,
+			currency: i.currency,
+			receiptId,
+			price: Number.parseInt(i.price.toFixed(0), 10)
+		});
+	}
+
+	const insertedItems = await tx.insert(receipt_item).values(items).returning();
+	const itemSplits = insertedItems.flatMap((value, index) =>
+		receiptItems[index].receiptSplit.map((split) => ({
+			userId: split.userId,
+			splitPercentage: split.splitPercentage,
+			receipt_item_id: value.id
+		}))
+	);
+	if (itemSplits.length > 0) {
+		await tx.insert(receipt_split).values(itemSplits);
 	}
 }
 
