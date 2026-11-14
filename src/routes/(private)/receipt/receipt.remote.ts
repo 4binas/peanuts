@@ -12,6 +12,14 @@ import {
 	ReceiptSchema
 } from '$lib/server/repository/receptRepository';
 import { generateReciptFromImage } from '$lib/server/services/llmService';
+import {
+	formatAmount,
+	NotificationType,
+	notifyGroup,
+	receiptCurrency,
+	receiptTotal
+} from '$lib/server/services/notificationService';
+import { error } from '@sveltejs/kit';
 import * as v from 'valibot';
 
 export const parseReceiptImage = form(
@@ -40,11 +48,28 @@ function receiptUserIds(data: CreateReceipt) {
 	return [data.boughtById, ...data.items.flatMap((i) => i.receiptSplit.map((s) => s.userId))];
 }
 
+function describeReceipt(
+	receipt: { storeName: string; items: { price: number; currency: string }[] },
+	groupCurrency: string
+) {
+	const amount = formatAmount(receiptTotal(receipt), receiptCurrency(receipt, groupCurrency));
+	return `"${receipt.storeName}" (${amount})`;
+}
+
 export const createReceipt = command(CreateReceiptSchema, async (data) => {
-	await requireGroupMember(data.groupId);
+	const user = await requireGroupMember(data.groupId);
 	await requireUsersInGroup(data.groupId, receiptUserIds(data));
 
 	const receipt = await receiptRepository.createReceipt({ ...data });
+
+	await notifyGroup({
+		groupId: data.groupId,
+		actorId: user.id,
+		type: NotificationType.expenseCreated,
+		entityId: receipt.id,
+		message: ({ currency }) => `added the expense ${describeReceipt(data, currency)}`
+	});
+
 	return receipt;
 });
 
@@ -53,9 +78,17 @@ export const deleteReceipt = command(
 		receiptId: v.pipe(v.string(), v.nonEmpty())
 	}),
 	async (data) => {
-		await requireReceiptAccess(data.receiptId);
+		const receipt = await requireReceiptAccess(data.receiptId);
+		const user = requireUser();
 
 		await receiptRepository.deleteReceipt(data.receiptId);
+
+		await notifyGroup({
+			groupId: receipt.groupId,
+			actorId: user.id,
+			type: NotificationType.expenseDeleted,
+			message: ({ currency }) => `deleted the expense ${describeReceipt(receipt, currency)}`
+		});
 	}
 );
 
@@ -69,12 +102,20 @@ export const getReceipt = query(
 );
 
 export const patchReceipt = command(ReceiptSchema, async (data) => {
-	await requireReceiptAccess(data.id);
-	await requireGroupMember(data.groupId);
+	const existing = await requireReceiptAccess(data.id);
+	if (existing.groupId !== data.groupId) error(400, 'Expenses cannot be moved to another group');
+	const user = await requireGroupMember(data.groupId);
 	await requireUsersInGroup(data.groupId, receiptUserIds(data));
 
-	//TODO: Actually patch the receipt
-	await receiptRepository.deleteReceipt(data.id);
-	const receipt = await receiptRepository.createReceipt({ ...data });
+	const receipt = await receiptRepository.updateReceipt(data);
+
+	await notifyGroup({
+		groupId: data.groupId,
+		actorId: user.id,
+		type: NotificationType.expenseUpdated,
+		entityId: receipt.id,
+		message: ({ currency }) => `updated the expense ${describeReceipt(data, currency)}`
+	});
+
 	return receipt;
 });

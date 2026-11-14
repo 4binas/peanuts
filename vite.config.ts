@@ -60,6 +60,8 @@ export default defineConfig({
 			},
 			workbox: {
 				cleanupOutdatedCaches: true,
+				// Push and notification-click handlers (static/push-sw.js)
+				importScripts: ['/push-sw.js'],
 				globPatterns: ['client/**/*.{js,css,html,ico,png,svg,webp}']
 			},
 			devOptions: {

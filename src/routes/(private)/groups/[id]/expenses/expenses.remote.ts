@@ -3,6 +3,7 @@ import { requireGroupMember, requireUsersInGroup } from '$lib/server/guards';
 import { paymentRepository } from '$lib/server/repository/paymentRepository';
 import { receiptRepository } from '$lib/server/repository/receptRepository';
 import { computeBalances } from '$lib/server/services/balanceService';
+import { NotificationType, notifyGroup } from '$lib/server/services/notificationService';
 import * as v from 'valibot';
 
 export const createExpense = form(
@@ -14,19 +15,29 @@ export const createExpense = form(
 		storeName: v.pipe(v.string(), v.nonEmpty())
 	}),
 	async (data) => {
-		await requireGroupMember(data.groupId);
+		const user = await requireGroupMember(data.groupId);
 		await requireUsersInGroup(data.groupId, [data.boughtById]);
 
+		let newReceipt;
 		try {
-			const newReceipt = await receiptRepository.createEmptyReceipt({
+			newReceipt = await receiptRepository.createEmptyReceipt({
 				groupId: data.groupId,
 				boughtById: data.boughtById,
 				storeName: data.storeName
 			});
-			return { receipt: newReceipt };
 		} catch (error) {
 			throw new Error('Failed to create receipt: ' + error, { cause: error });
 		}
+
+		await notifyGroup({
+			groupId: data.groupId,
+			actorId: user.id,
+			type: NotificationType.expenseCreated,
+			entityId: newReceipt.id,
+			message: () => `added the expense "${data.storeName}"`
+		});
+
+		return { receipt: newReceipt };
 	}
 );
 
