@@ -37,6 +37,17 @@ class NotificationRepository {
 		return row?.count ?? 0;
 	}
 
+	/** Unread counts keyed by user id; users without unread notifications are absent. */
+	async countUnreadForUsers(userIds: string[]) {
+		if (userIds.length === 0) return new Map<string, number>();
+		const rows = await db
+			.select({ userId: notification.userId, count: count() })
+			.from(notification)
+			.where(and(inArray(notification.userId, userIds), isNull(notification.readAt)))
+			.groupBy(notification.userId);
+		return new Map(rows.map((r) => [r.userId, r.count]));
+	}
+
 	/** Marks the given notifications (or all when omitted) of the user as read. */
 	async markRead(userId: string, ids?: string[]) {
 		const conditions = [eq(notification.userId, userId), isNull(notification.readAt)];

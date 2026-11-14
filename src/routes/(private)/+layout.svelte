@@ -5,13 +5,23 @@
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import { getUnreadCount } from './notifications/notifications.remote';
+	import { syncPushSubscription } from '$lib/client/push';
 
 	let { children } = $props();
 	const pathname = $derived(page.url.pathname);
 	const unreadCount = $derived(await getUnreadCount());
 
+	// Keep the count on the installed app's icon in line with the bell
+	$effect(() => {
+		if (!('setAppBadge' in navigator)) return;
+		(unreadCount > 0 ? navigator.setAppBadge(unreadCount) : navigator.clearAppBadge()).catch(
+			() => {}
+		);
+	});
+
 	// Pick up notifications created by other group members
 	onMount(() => {
+		syncPushSubscription().catch((err) => console.error('Failed to sync push subscription', err));
 		const interval = setInterval(() => getUnreadCount().refresh(), 60_000);
 		return () => clearInterval(interval);
 	});

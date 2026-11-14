@@ -310,3 +310,22 @@ export const notificationRelations = relations(notification, ({ one }) => ({
 		references: [group.id]
 	})
 }));
+
+// Push subscription
+
+/** One row per browser/device that opted in to web push. */
+export const pushSubscription = pgTable(
+	'push_subscription',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		// Push service URL; identifies the device, so it is unique across users
+		endpoint: text('endpoint').notNull().unique(),
+		p256dh: text('p256dh').notNull(),
+		auth: text('auth').notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull()
+	},
+	(table) => [index('push_subscription_userId_idx').on(table.userId)]
+);

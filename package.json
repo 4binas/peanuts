@@ -31,6 +31,7 @@
 		"@tailwindcss/typography": "^0.5.19",
 		"@tailwindcss/vite": "^4.3.0",
 		"@types/node": "^24",
+		"@types/web-push": "^3.6.4",
 		"@vite-pwa/sveltekit": "^1.1.0",
 		"@vitest/browser-playwright": "^4.1.8",
 		"auth": "^1.6.23",
@@ -62,6 +63,7 @@
 		"openai": "^7.3.0",
 		"postgres": "^3.4.9",
 		"valibot": "^1.4.2",
+		"web-push": "^4.0.0",
 		"zod": "^4.4.3"
 	},
 	"packageManager": "pnpm@11.20.0+sha512.9a6f330a95b66446ea088faf1521405a8a01f07fde7124cc9958dfed52d4bb436737e65b08f85f37b46fcba375092558ac51262b816844b22f63406ed166bfee"

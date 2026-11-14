@@ -1,5 +1,10 @@
 import { groupRepository } from '../repository/groupRepository';
-import { notificationRepository } from '../repository/notificationRepository';
+import {
+	notificationRepository,
+	type NotificationInput
+} from '../repository/notificationRepository';
+import { notificationPath } from '$lib/notificationLink';
+import { sendPush } from './pushService';
 
 export const NotificationType = {
 	expenseCreated: 'expense_created',
@@ -34,7 +39,8 @@ export function memberName(members: Members, userId: string, recipientId?: strin
 }
 
 /**
- * Notifies every group member except the actor. Failures are logged and
+ * Notifies every group member except the actor, in the app and as a push
+ * message on their subscribed devices. Failures are logged and
  * swallowed so a notification problem never fails the action that caused it.
  */
 export async function notifyGroup({ groupId, actorId, type, entityId, message }: NotifyGroupInput) {
@@ -46,18 +52,44 @@ export async function notifyGroup({ groupId, actorId, type, entityId, message }:
 			(id) => id !== actorId
 		);
 
-		await notificationRepository.createNotifications(
-			recipients.map((recipientId) => ({
-				userId: recipientId,
-				actorId,
-				groupId,
-				type,
-				entityId: entityId ?? null,
-				message: message({ recipientId, members: group.members, currency: group.currency })
-			}))
-		);
+		const notifications = recipients.map((recipientId) => ({
+			userId: recipientId,
+			actorId,
+			groupId,
+			type,
+			entityId: entityId ?? null,
+			message: message({ recipientId, members: group.members, currency: group.currency })
+		}));
+		await notificationRepository.createNotifications(notifications);
+
+		// Not awaited: a slow push service must not delay the action that caused it
+		void pushToDevices(notifications, group.name, memberName(group.members, actorId));
 	} catch (err) {
 		console.error('Failed to create notifications', err);
+	}
+}
+
+async function pushToDevices(
+	notifications: NotificationInput[],
+	groupName: string,
+	actorName: string
+) {
+	try {
+		const byUser = new Map(notifications.map((n) => [n.userId, n]));
+		const unread = await notificationRepository.countUnreadForUsers([...byUser.keys()]);
+
+		await sendPush([...byUser.keys()], (userId) => {
+			const n = byUser.get(userId)!;
+			return {
+				title: groupName,
+				body: `${actorName} ${n.message}`,
+				url: notificationPath(n),
+				tag: n.entityId ?? n.groupId,
+				badgeCount: unread.get(userId) ?? 0
+			};
+		});
+	} catch (err) {
+		console.error('Failed to send push notifications', err);
 	}
 }
 

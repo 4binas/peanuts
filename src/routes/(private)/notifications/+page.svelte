@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { Banknote, BellOff, CheckCheck, HandCoins, UserPlus } from '@lucide/svelte';
 	import { formatDistanceToNow } from 'date-fns';
+	import { notificationPath } from '$lib/notificationLink';
 	import { getNotifications, markNotificationsRead } from './notifications.remote';
 
 	const notifications = $derived(await getNotifications());
@@ -10,19 +11,9 @@
 
 	type Notification = (typeof notifications)[number];
 
-	function href(n: Notification) {
-		if (n.entityId && n.type.startsWith('expense_') && n.type !== 'expense_deleted') {
-			return resolve(`/groups/${n.groupId}/expenses/${n.entityId}`);
-		}
-		if (n.entityId && n.type.startsWith('payment_') && n.type !== 'payment_deleted') {
-			return resolve(`/groups/${n.groupId}/payment/${n.entityId}`);
-		}
-		return resolve(`/groups/${n.groupId}`);
-	}
-
 	async function open(n: Notification) {
 		if (!n.readAt) await markNotificationsRead({ ids: [n.id] });
-		goto(href(n));
+		goto(resolve(notificationPath(n)));
 	}
 </script>
 
